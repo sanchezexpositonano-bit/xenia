@@ -1,3 +1,100 @@
+# RFC: Abstraction for Read-Only Image Devices (IDevice)
+
+## 🧩 Resumen ejecutivo
+Propuesta para introducir una **abstracción de dispositivo de solo lectura (IDevice)** en Xenia, que permita manejar datos de distintas fuentes (físico, archivo, memoria) sin modificar la semántica actual de E/S (I/O) del emulador.
+
+El objetivo es mejorar la modularidad, facilitar pruebas con imágenes **homebrew o de dominio público**, y sentar las bases para futuras extensiones legítimas de lectura de medios virtuales.
+
+---
+
+## 🎯 Motivación
+- El código de lectura actual está acoplado a un tipo específico de fuente de datos.  
+- No existe una interfaz clara que permita a Xenia consumir datos de una imagen virtual o de memoria para pruebas automatizadas.  
+- La comunidad podría beneficiarse de una arquitectura más extensible sin comprometer la legalidad ni el cumplimiento de licencias.
+
+### Beneficios esperados
+- **Testing**: ejecutar pruebas con imágenes de ejemplo sin depender de hardware físico.  
+- **Mantenimiento**: simplificar futuras refactorizaciones del sistema de archivos.  
+- **Extensibilidad**: habilitar soporte para nuevos tipos de dispositivos *sin tocar el core*.
+
+---
+
+## ⚙️ Diseño de alto nivel
+
+### 1. Interfaz base: `IDevice`
+Un contrato de solo lectura con operaciones mínimas:
+- `read_sector(offset, length)` → devuelve bytes de lectura.  
+- `size()` → devuelve tamaño total del medio.  
+- `close()` → libera recursos.
+
+### 2. Implementaciones
+| Clase | Descripción | Estado |
+|:--|:--|:--:|
+| `PhysicalDevice` | Implementación actual (lectura desde disco físico o sistema host). | ✅ Existente |
+| `FileImageDevice` | Nueva implementación que simula un dispositivo físico usando un archivo de imagen local (solo lectura). | 🚧 Propuesta |
+| `MemoryDevice` | Implementación de test fixture para pruebas unitarias. | 🚧 Propuesta |
+
+### 3. Política y seguridad
+- Todas las implementaciones deben ser **solo lectura**.  
+- Los módulos que traten imágenes externas deben validar:
+  - Origen (ruta local, no red).  
+  - Hash opcional para verificación.  
+  - Logs de auditoría (`info: device mounted [path]`).  
+- No se deben incluir parsers ni manejadores de formatos propietarios o con DRM.
+
+---
+
+## 🧱 Integración esperada
+- `StorageManager` pasará a aceptar objetos `IDevice` en lugar de rutas de archivo rígidas.  
+- `ContentManager` podrá operar indistintamente sobre dispositivos físicos o virtuales.  
+- `KernelIO` conservará la semántica actual; solo cambia la fuente de datos.
+
+---
+
+## 🧪 Pruebas y validación
+### Unit tests
+- Lectura secuencial y por rangos.
+- Validación de límites y errores esperados.
+- Comparación de hash de bloques (consistencia de datos).
+
+### Integration tests
+- Montar `FileImageDevice` con una imagen *homebrew pública*.  
+- Validar que `KernelIO` acceda correctamente a sectores esperados.  
+- Test automatizado de apertura/cierre de dispositivos.
+
+---
+
+## 🧰 Plan de trabajo propuesto
+| Fase | Tarea | Responsable | Estado |
+|:--|:--|:--|:--:|
+| 1 | Mapear interfaces de almacenamiento existentes | Contributor | ⏳ |
+| 2 | Redactar diseño detallado (este RFC) | Contributor | ✅ |
+| 3 | Implementar interfaz `IDevice` y adaptadores básicos | Contributor | ⏳ |
+| 4 | Escribir tests unitarios/integración | Contributor | ⏳ |
+| 5 | Revisar y documentar API | Maintainers | ⏳ |
+| 6 | Merge y CI validation | Maintainers | ⏳ |
+
+---
+
+## 📋 Compatibilidad y seguridad
+- No cambia la API pública ni las rutas de ejecución del emulador.  
+- Todas las implementaciones son *opt-in* y bajo modo lectura.  
+- Sin riesgos de seguridad ni fugas de memoria si se siguen las prácticas RAII.  
+- Cumple con las reglas de distribución open source: **no incluye herramientas ni datos con DRM.**
+
+---
+
+## 🧠 Checklist para reviewers
+- [ ] Interfaz base minimalista y estable.  
+- [ ] No hay dependencia con formatos cerrados.  
+- [ ] Tests incluidos.  
+- [ ] Documentación actualizada (`docs/architecture/storage.md`).  
+- [ ] Logs auditables.  
+- [ ] Cumplimiento de licencias.
+
+---
+
+## 📎 Archivos de referencia (indicativos)
 # Content Guidelines
 
 The issue tracker is exclusively for filing and discussing bugs, feature
